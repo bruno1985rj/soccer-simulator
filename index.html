@@ -769,10 +769,10 @@
 
             <!-- Round Schedule -->
             <div class="round-schedule">
-                <div class="round-title">Partidas da Rodada</div>
+                <div class="round-title">Partidas da Rodada <span id="roundInfo"></span></div>
                 <div class="matches-list" id="matchesList"></div>
                 <div class="button-group" style="margin-top: 20px;">
-                    <button class="btn-primary" id="playRoundBtn">Jogar Rodada</button>
+                    <button class="btn-primary" id="playRoundBtn">Jogar Próxima Partida</button>
                     <button class="btn-secondary btn-small" id="skipRoundBtn">Pular Rodada</button>
                 </div>
             </div>
@@ -824,8 +824,8 @@
         // ===== GAME STATE =====
         const gameState = {
             selectedTeam: null,
-            players: [],
             currentRound: 0,
+            currentMatchIndex: 0,
             matches: [],
             standings: [],
             money: 10000,
@@ -834,10 +834,10 @@
 
         // ===== TEAMS DATA =====
         const TEAMS = [
-            { name: 'Real Madrid', icon: '👑', strength: 85 },
-            { name: 'Barcelona', icon: '🟦', strength: 83 },
-            { name: 'Flamengo', icon: '🔴', strength: 79 },
-            { name: 'Palmeiras', icon: '🟢', strength: 81 }
+            { name: 'Real Madrid', icon: '👑', strength: 85, players: ['Benzema', 'Vinicius Jr', 'Modric', 'Kroos', 'Ramos', 'Courtois', 'Nacho', 'Rodrygo', 'Asensio', 'Valverde', 'Bale'] },
+            { name: 'Barcelona', icon: '🟦', strength: 83, players: ['Messi', 'Suárez', 'Griezmann', 'Alba', 'Busquets', 'Piqué', 'Dest', 'Pedri', 'Fati', 'Ter Stegen', 'Lenglet'] },
+            { name: 'Flamengo', icon: '🔴', strength: 79, players: ['Arrascaeta', 'Giorgian', 'Gabigol', 'Vitinho', 'David Luiz', 'Isla', 'Thiago Maia', 'Matheuzinho', 'Diego Alves', 'Bruno Henrique', 'Filipe Luís'] },
+            { name: 'Palmeiras', icon: '🟢', strength: 81, players: ['Dudu', 'Rony', 'Raphael Veiga', 'Weverton', 'Gómez', 'Scarpa', 'Gustavo Scarpa', 'Zé Rafael', 'Murilo', 'Danilo', 'Luan'] }
         ];
 
         const UPGRADES = [
@@ -907,6 +907,8 @@
             
             gameState.gameStarted = true;
             gameState.money = 10000;
+            gameState.currentRound = 0;
+            gameState.currentMatchIndex = 0;
             initializeStandings();
             generateMatches();
             updateUI();
@@ -932,33 +934,27 @@
         function generateMatches() {
             gameState.matches = [];
             const teamIndices = [0, 1, 2, 3];
-            const numRounds = 6;
 
-            for (let round = 0; round < numRounds; round++) {
-                const roundMatches = [];
-                const indices = round < 3 ? teamIndices : [...teamIndices].reverse();
-                
-                for (let i = 0; i < 2; i++) {
-                    roundMatches.push({
-                        team1: indices[0],
-                        team2: indices[3],
-                        round: round,
-                        played: false,
-                        team1Goals: 0,
-                        team2Goals: 0
-                    });
-                    roundMatches.push({
-                        team1: indices[1],
-                        team2: indices[2],
-                        round: round,
-                        played: false,
-                        team1Goals: 0,
-                        team2Goals: 0
-                    });
+            // Turno (todos com todos)
+            for (let i = 0; i < teamIndices.length; i++) {
+                for (let j = 0; j < teamIndices.length; j++) {
+                    if (i !== j) {
+                        gameState.matches.push({
+                            team1: i,
+                            team2: j,
+                            round: Math.floor(gameState.matches.length / 2),
+                            played: false,
+                            team1Goals: 0,
+                            team2Goals: 0
+                        });
+                    }
                 }
-
-                gameState.matches.push(...roundMatches);
             }
+        }
+
+        function getRandomPlayer(teamIndex) {
+            const players = TEAMS[teamIndex].players;
+            return players[Math.floor(Math.random() * players.length)];
         }
 
         function simulateMatch(match) {
@@ -1006,29 +1002,26 @@
             return { team1Goals, team2Goals };
         }
 
-        function playRound() {
-            const currentMatches = gameState.matches.filter(m => m.round === gameState.currentRound && !m.played);
+        function playNextMatch() {
+            const unplayedMatches = gameState.matches.filter(m => !m.played);
             
-            if (currentMatches.length === 0) {
-                showModal('Rodada Completa', 'Todas as partidas desta rodada já foram disputadas!', [
-                    { text: 'Próxima Rodada', primary: true, callback: nextRound }
-                ]);
+            if (unplayedMatches.length === 0) {
+                endSeason();
                 return;
             }
 
-            const playerMatches = currentMatches.filter(m => 
+            const playerMatches = unplayedMatches.filter(m => 
                 m.team1 === gameState.selectedTeam || m.team2 === gameState.selectedTeam
             );
 
             if (playerMatches.length === 0) {
-                currentMatches.forEach(m => {
-                    simulateMatch(m);
-                });
+                // Simular todos os matches restantes
+                unplayedMatches.forEach(m => simulateMatch(m));
                 updateUI();
                 updateClassification();
                 
-                showModal('Rodada Simulada', 'Todas as outras partidas foram disputadas!', [
-                    { text: 'Próxima Rodada', primary: true, callback: nextRound }
+                showModal('Campeonato Concluído', 'Todas as partidas foram disputadas!', [
+                    { text: 'Ver Resultado Final', primary: true, callback: endSeason }
                 ]);
                 return;
             }
@@ -1048,16 +1041,17 @@
             document.getElementById('matchScore').textContent = '0 x 0';
             document.getElementById('matchLog').innerHTML = '<div class="match-log-entry">Partida iniciando...</div>';
             document.getElementById('matchResultDisplay').style.display = 'none';
-            document.getElementById('currentRoundDisplay').textContent = gameState.currentRound + 1;
-            document.getElementById('totalRoundsDisplay').textContent = 6;
 
             document.getElementById('playMatchBtn').onclick = () => simulateAndShowMatch(match);
             document.getElementById('matchSimulation').style.display = 'block';
+            document.getElementById('roundInfo').textContent = `(${gameState.matches.filter(m => m.played).length}/${gameState.matches.length})`;
         }
 
         function simulateAndShowMatch(match) {
             const team1 = gameState.standings[match.team1];
             const team2 = gameState.standings[match.team2];
+            const team1Data = TEAMS[match.team1];
+            const team2Data = TEAMS[match.team2];
 
             document.getElementById('playMatchBtn').disabled = true;
 
@@ -1084,12 +1078,12 @@
                 
                 for (let i = 0; i < team1Goals; i++) {
                     const minute = 10 + Math.floor(Math.random() * 75);
-                    events.push({ minute, team: 0, type: 'goal' });
+                    events.push({ minute, team: 0, type: 'goal', player: getRandomPlayer(match.team1) });
                 }
                 
                 for (let i = 0; i < team2Goals; i++) {
                     const minute = 10 + Math.floor(Math.random() * 75);
-                    events.push({ minute, team: 1, type: 'goal' });
+                    events.push({ minute, team: 1, type: 'goal', player: getRandomPlayer(match.team2) });
                 }
 
                 events.sort((a, b) => a.minute - b.minute);
@@ -1101,18 +1095,16 @@
             const addEvent = () => {
                 if (eventIndex < events.length) {
                     const event = events[eventIndex];
-                    const teamName = event.team === 0 ? team1.name : team2.name;
                     const logEntry = document.createElement('div');
                     logEntry.className = 'match-log-entry goal';
-                    logEntry.textContent = `${event.minute}' - ⚽ GOL DO ${teamName}`;
+                    logEntry.textContent = `${event.minute}' - ⚽ GOL! ${event.player}`;
                     matchLog.appendChild(logEntry);
                     matchLog.scrollTop = matchLog.scrollHeight;
 
-                    if (event.team === 0) {
-                        document.getElementById('matchScore').textContent = `${Math.min(eventIndex + 1, team1Goals)} x ${team2Goals}`;
-                    } else {
-                        document.getElementById('matchScore').textContent = `${team1Goals} x ${team2Goals}`;
-                    }
+                    document.getElementById('matchScore').textContent = 
+                        event.team === 0 
+                            ? `${events.slice(0, eventIndex + 1).filter(e => e.team === 0).length} x ${events.slice(0, eventIndex + 1).filter(e => e.team === 1).length}`
+                            : `${events.slice(0, eventIndex + 1).filter(e => e.team === 0).length} x ${events.slice(0, eventIndex + 1).filter(e => e.team === 1).length}`;
 
                     eventIndex++;
                     setTimeout(addEvent, 1500);
@@ -1130,17 +1122,27 @@
             const team1 = gameState.standings[match.team1];
             const team2 = gameState.standings[match.team2];
 
+            // Determinar resultado do time do jogador
+            let playerResult = null;
             if (match.team1 === gameState.selectedTeam) {
                 if (team1Goals > team2Goals) {
+                    playerResult = 'win';
                     gameState.money += 1000;
                 } else if (team1Goals === team2Goals) {
+                    playerResult = 'draw';
                     gameState.money += 300;
+                } else {
+                    playerResult = 'loss';
                 }
             } else if (match.team2 === gameState.selectedTeam) {
                 if (team2Goals > team1Goals) {
+                    playerResult = 'win';
                     gameState.money += 1000;
                 } else if (team1Goals === team2Goals) {
+                    playerResult = 'draw';
                     gameState.money += 300;
+                } else {
+                    playerResult = 'loss';
                 }
             }
 
@@ -1148,13 +1150,10 @@
             resultDisplay.style.display = 'block';
             
             let resultClass, resultText;
-            if (team1Goals > team2Goals && match.team1 === gameState.selectedTeam) {
+            if (playerResult === 'win') {
                 resultClass = 'win';
                 resultText = '✨ VITÓRIA! +R$ 1000';
-            } else if (team2Goals > team1Goals && match.team2 === gameState.selectedTeam) {
-                resultClass = 'win';
-                resultText = '✨ VITÓRIA! +R$ 1000';
-            } else if (team1Goals === team2Goals) {
+            } else if (playerResult === 'draw') {
                 resultClass = 'draw';
                 resultText = '🤝 EMPATE! +R$ 300';
             } else {
@@ -1168,41 +1167,31 @@
             updateUI();
             updateClassification();
 
-            const roundMatches = gameState.matches.filter(m => m.round === gameState.currentRound);
-            const allPlayed = roundMatches.every(m => m.played);
-
             setTimeout(() => {
-                if (allPlayed) {
-                    showModal('Rodada Completa', 'Todas as partidas foram disputadas!', [
-                        { text: 'Próxima Rodada', primary: true, callback: nextRound }
+                document.getElementById('playMatchBtn').disabled = false;
+                const unplayedMatches = gameState.matches.filter(m => !m.played);
+                if (unplayedMatches.length === 0) {
+                    showModal('Campeonato Concluído!', 'Todas as partidas foram disputadas!', [
+                        { text: 'Ver Resultado Final', primary: true, callback: endSeason }
                     ]);
                     document.getElementById('matchSimulation').style.display = 'none';
-                } else {
-                    document.getElementById('playMatchBtn').disabled = false;
-                    closeModal();
                 }
             }, 2000);
         }
 
-        function nextRound() {
-            gameState.currentRound++;
-            if (gameState.currentRound >= 6) {
-                endSeason();
-                return;
-            }
-            updateUI();
-        }
-
         function skipRound() {
-            const roundMatches = gameState.matches.filter(m => m.round === gameState.currentRound && !m.played);
-            roundMatches.forEach(m => simulateMatch(m));
+            const unplayedMatches = gameState.matches.filter(m => !m.played);
+            unplayedMatches.forEach(m => simulateMatch(m));
             updateClassification();
-            nextRound();
+            endSeason();
         }
 
         function endSeason() {
             const playerTeam = gameState.standings[gameState.selectedTeam];
-            const sorted = [...gameState.standings].sort((a, b) => b.points - a.points);
+            const sorted = [...gameState.standings].sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                return (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst);
+            });
             const position = sorted.findIndex(t => t.teamIndex === gameState.selectedTeam) + 1;
 
             let message = `Campeonato Finalizado!\n\n${playerTeam.name}\nPosição: ${position}º lugar\nPontos: ${playerTeam.points}\nVitórias: ${playerTeam.wins}\nDinheiro Final: R$ ${gameState.money.toLocaleString('pt-BR')}`;
@@ -1227,17 +1216,16 @@
         }
 
         function updateRoundMatches() {
-            const roundMatches = gameState.matches.filter(m => m.round === gameState.currentRound);
             const list = document.getElementById('matchesList');
             list.innerHTML = '';
 
-            roundMatches.forEach(match => {
+            gameState.matches.forEach(match => {
                 const team1 = TEAMS[match.team1];
                 const team2 = TEAMS[match.team2];
                 const isPlayerMatch = match.team1 === gameState.selectedTeam || match.team2 === gameState.selectedTeam;
 
                 const item = document.createElement('div');
-                item.className = `match-item ${isPlayerMatch ? 'current' : ''}`;
+                item.className = `match-item ${isPlayerMatch ? 'current' : ''} ${match.played ? '' : ''}`;
                 
                 if (match.played) {
                     item.innerHTML = `
@@ -1332,14 +1320,16 @@
         function resetGame() {
             gameState.selectedTeam = null;
             gameState.currentRound = 0;
+            gameState.currentMatchIndex = 0;
             gameState.money = 10000;
             gameState.gameStarted = false;
+            gameState.matches = [];
             initTeamSelection();
             showScreen('teamSelectionScreen');
         }
 
         document.getElementById('startGameBtn').addEventListener('click', startGame);
-        document.getElementById('playRoundBtn').addEventListener('click', playRound);
+        document.getElementById('playRoundBtn').addEventListener('click', playNextMatch);
         document.getElementById('skipRoundBtn').addEventListener('click', skipRound);
         document.getElementById('resetGameBtn').addEventListener('click', resetGame);
 
