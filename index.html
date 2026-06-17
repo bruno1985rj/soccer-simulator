@@ -935,7 +935,7 @@
             gameState.matches = [];
             const teamIndices = [0, 1, 2, 3];
 
-            // Turno (todos com todos)
+            // Gera todos os confrontos possíveis
             for (let i = 0; i < teamIndices.length; i++) {
                 for (let j = 0; j < teamIndices.length; j++) {
                     if (i !== j) {
@@ -1117,48 +1117,51 @@
         }
 
         function finishMatch(match, team1Goals, team2Goals) {
+            // Primeira simula a partida para atualizar standings
             simulateMatch(match);
             
-            const team1 = gameState.standings[match.team1];
-            const team2 = gameState.standings[match.team2];
-
-            // Determinar resultado do time do jogador
-            let playerResult = null;
-            if (match.team1 === gameState.selectedTeam) {
-                if (team1Goals > team2Goals) {
-                    playerResult = 'win';
-                    gameState.money += 1000;
-                } else if (team1Goals === team2Goals) {
-                    playerResult = 'draw';
-                    gameState.money += 300;
-                } else {
-                    playerResult = 'loss';
-                }
-            } else if (match.team2 === gameState.selectedTeam) {
-                if (team2Goals > team1Goals) {
-                    playerResult = 'win';
-                    gameState.money += 1000;
-                } else if (team1Goals === team2Goals) {
-                    playerResult = 'draw';
-                    gameState.money += 300;
-                } else {
-                    playerResult = 'loss';
-                }
-            }
-
+            // Depois determina o resultado do jogador baseado nos gols finais
             const resultDisplay = document.getElementById('matchResultDisplay');
             resultDisplay.style.display = 'block';
             
+            let playerResult = null;
             let resultClass, resultText;
-            if (playerResult === 'win') {
-                resultClass = 'win';
-                resultText = '✨ VITÓRIA! +R$ 1000';
-            } else if (playerResult === 'draw') {
-                resultClass = 'draw';
-                resultText = '🤝 EMPATE! +R$ 300';
-            } else {
-                resultClass = 'loss';
-                resultText = '😞 DERROTA';
+
+            // Corrigir: verificar quem é o time do jogador e comparar gols
+            if (match.team1 === gameState.selectedTeam) {
+                // Jogador é team1
+                if (team1Goals > team2Goals) {
+                    playerResult = 'win';
+                    gameState.money += 1000;
+                    resultClass = 'win';
+                    resultText = '✨ VITÓRIA! +R$ 1000';
+                } else if (team1Goals === team2Goals) {
+                    playerResult = 'draw';
+                    gameState.money += 300;
+                    resultClass = 'draw';
+                    resultText = '🤝 EMPATE! +R$ 300';
+                } else {
+                    playerResult = 'loss';
+                    resultClass = 'loss';
+                    resultText = '😞 DERROTA';
+                }
+            } else if (match.team2 === gameState.selectedTeam) {
+                // Jogador é team2
+                if (team2Goals > team1Goals) {
+                    playerResult = 'win';
+                    gameState.money += 1000;
+                    resultClass = 'win';
+                    resultText = '✨ VITÓRIA! +R$ 1000';
+                } else if (team1Goals === team2Goals) {
+                    playerResult = 'draw';
+                    gameState.money += 300;
+                    resultClass = 'draw';
+                    resultText = '🤝 EMPATE! +R$ 300';
+                } else {
+                    playerResult = 'loss';
+                    resultClass = 'loss';
+                    resultText = '😞 DERROTA';
+                }
             }
 
             resultDisplay.className = `match-result ${resultClass}`;
